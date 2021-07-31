@@ -1,5 +1,54 @@
 import numpy as np
 
+
+
+__author__ = "Marcus Vinicius"
+
+def iniciar_populacao(_cidades, matriz_de_adjacencia, n_populacao):
+        return Population(
+        np.asarray([np.random.permutation(_cidades) for _ in range(n_populacao)]), 
+        matriz_de_adjacencia
+         )
+def swap(cromossomo):
+    a, b = np.random.choice(len(cromossomo), 2)
+    cromossomo[a], cromossomo[b] = (
+        cromossomo[b],
+        cromossomo[a],
+    )
+    return cromossomo
+
+def algoritimo_genetico(
+_cidades,
+matriz_de_adjacencia,
+n_populacao=5,
+n_iter=20,
+selecionaridade=0.15,
+p_cross=0.5,
+p_mut=0.1,
+print_interval=100,
+return_historico=False,
+verbose=False,
+):
+    pop = iniciar_populacao(_cidades, matriz_de_adjacencia, n_populacao)
+    melhor_populacao = pop.melhor_populacao
+    score = float("inf")
+    historico = []
+    for i in range(n_iter):
+        pop.selecionar(n_populacao * selecionaridade)
+        historico.append(pop.score)
+        if verbose:
+            print(f"Geracão {i}: {pop.score}")
+        elif i % print_interval == 0:
+            print(f"Geracão {i}: {pop.score}")
+        if pop.score < score:
+            melhor_populacao = pop.melhor_populacao
+            score = pop.score
+        filhos = pop.mutate(p_cross, p_mut)
+        pop = Population(filhos, pop.matriz_de_adjacencia)
+    if return_historico:
+        return melhor_populacao, historico
+    return melhor_populacao
+
 class Cidades:
 
     def __init__(self, n_cidades, fator=10):
@@ -10,137 +59,97 @@ class Cidades:
         return np.random.rand(self.n_cidades, 2) * self.n_cidades * self.fator
     
     
-    def make_mat(self, coordinates):
-        res = [
-            [self.get_distance(city1, city2) for city2 in coordinates]
-        for city1 in coordinates
+    def gerar_matriz(self, coordenadascidade_coordenadas):
+        result = [
+            [self.obter_distancia(cidade1, cidade2) for cidade2 in coordenadascidade_coordenadas]
+        for cidade1 in coordenadascidade_coordenadas
     ]
-        return np.asarray(res)
+        return np.asarray(result)
 
-    def get_distance(self, city1, city2):
-        return np.sqrt((city1[0] - city2[0])**2 + (city1[1] - city2[1])**2)
-def init_population(cities, adjacency_mat, n_population):
-        return Population(
-        np.asarray([np.random.permutation(cities) for _ in range(n_population)]), 
-        adjacency_mat
-         )
+    def obter_distancia(self, cidade1, cidade2):
+        return np.sqrt((cidade1[0] - cidade2[0])**2 + (cidade1[1] - cidade2[1])**2)
+
 class Population():
-    def __init__(self, bag, adjacency_mat):
-        self.bag = bag
-        self.parents = []
+    def __init__(self, populat, matriz_de_adjacencia):
+        self.populat = populat
+        self.pais = []
         self.score = 0
-        self.best = None
-        self.adjacency_mat = adjacency_mat
+        self.melhor_populacao = None
+        self.matriz_de_adjacencia = matriz_de_adjacencia
     
     def mutate(self, p_cross=0.1, p_mut=0.1):
-        next_bag = []
-        children = self.crossover(p_cross)
-        for child in children:
+        proxima_pop = []
+        filhos = self.crossover(p_cross)
+        for filho in filhos:
             if np.random.rand() < p_mut:
-                next_bag.append(swap(child))
+                proxima_pop.append(swap(filho))
             else:
-                next_bag.append(child)
-        return next_bag
+                proxima_pop.append(filho)
+        return proxima_pop
     
     
     
-    def fitness(self, chromosome):
+    def fitness(self, cromossomo):
         return sum(
         [
-            self.adjacency_mat[chromosome[i], chromosome[i + 1]]
-            for i in range(len(chromosome) - 1)
+            self.matriz_de_adjacencia[cromossomo[i], cromossomo[i + 1]]
+            for i in range(len(cromossomo) - 1)
         ]
     )  
-    def evaluate(self):
-        distances = np.asarray(
-        [self.fitness(chromosome) for chromosome in self.bag]
+    def avaliar(self):
+        distancias = np.asarray(
+        [self.fitness(cromossomo) for cromossomo in self.populat]
     )
-        self.score = np.min(distances)
-        self.best = self.bag[distances.tolist().index(self.score)]
-        self.parents.append(self.best)
-        if False in (distances[0] == distances):
-            distances = np.max(distances) - distances
-        return distances / np.sum(distances)
+        self.score = np.min(distancias)
+        self.melhor_populacao = self.populat[distancias.tolist().index(self.score)]
+        self.pais.append(self.melhor_populacao)
+        if False in (distancias[0] == distancias):
+            distancias = np.max(distancias) - distancias
+        return distancias / np.sum(distancias)
     
-    def select(self, k=4):
-        fit = self.evaluate()
-        while len(self.parents) < k:
+    def selecionar(self, k=4):
+        fit = self.avaliar()
+        while len(self.pais) < k:
             idx = np.random.randint(0, len(fit))
             if fit[idx] > np.random.rand():
-                self.parents.append(self.bag[idx])
-        self.parents = np.asarray(self.parents)
+                self.pais.append(self.populat[idx])
+        self.pais = np.asarray(self.pais)
 
 
     
     def crossover(self, p_cross=0.1):
-        children = []
-        count, size = self.parents.shape
-        for _ in range(len(self.bag)):
+        filhos = []
+        count, size = self.pais.shape
+        for _ in range(len(self.populat)):
             if np.random.rand() > p_cross:
-                children.append(
-                    list(self.parents[np.random.randint(count, size=1)[0]])
+                filhos.append(
+                    list(self.pais[np.random.randint(count, size=1)[0]])
                 )
             else:
-                parent1, parent2 = self.parents[
+                pai1, pai2 = self.pais[
                     np.random.randint(count, size=2), :
                 ]
                 idx = np.random.choice(range(size), size=2, replace=False)
                 start, end = min(idx), max(idx)
-                child = [None] * size
+                filho = [None] * size
                 for i in range(start, end + 1, 1):
-                    child[i] = parent1[i]
-                pointer = 0
+                    filho[i] = pai1[i]
+                indicie = 0
                 for i in range(size):
-                    if child[i] is None:
-                        while parent2[pointer] in child:
-                            pointer += 1
-                        child[i] = parent2[pointer]
-                children.append(child)
-        return children
+                    if filho[i] is None:
+                        while pai2[indicie] in filho:
+                            indicie += 1
+                        filho[i] = pai2[indicie]
+                filhos.append(filho)
+        return filhos
 
-def genetic_algorithm(
-cities,
-adjacency_mat,
-n_population=5,
-n_iter=20,
-selectivity=0.15,
-p_cross=0.5,
-p_mut=0.1,
-print_interval=100,
-return_history=False,
-verbose=False,
-):
-    pop = init_population(cities, adjacency_mat, n_population)
-    best = pop.best
-    score = float("inf")
-    history = []
-    for i in range(n_iter):
-        pop.select(n_population * selectivity)
-        history.append(pop.score)
-        if verbose:
-            print(f"Generation {i}: {pop.score}")
-        elif i % print_interval == 0:
-            print(f"Generation {i}: {pop.score}")
-        if pop.score < score:
-            best = pop.best
-            score = pop.score
-        children = pop.mutate(p_cross, p_mut)
-        pop = Population(children, pop.adjacency_mat)
-    if return_history:
-        return best, history
-    return best
-def swap(chromosome):
-    a, b = np.random.choice(len(chromosome), 2)
-    chromosome[a], chromosome[b] = (
-        chromosome[b],
-        chromosome[a],
-    )
-    return chromosome
 
-cities = range(100)
-each_city = Cidades(len(cities))
-city_coordinates = each_city.gerar_cidades()
-adjacency_mat = each_city.make_mat(city_coordinates)
-best, history = genetic_algorithm(
-    cities, adjacency_mat, n_population=20, n_iter=1000, verbose=True, return_history=True
+
+
+_cidades = range(100)
+cada_cidade = Cidades(len(_cidades))
+cidade_coordenadas = cada_cidade.gerar_cidades()
+matriz_de_adjacencia = cada_cidade.gerar_matriz(cidade_coordenadas)
+melhor_populacao, historico = algoritimo_genetico(
+    _cidades, matriz_de_adjacencia, n_populacao=20, n_iter=1000, verbose=True, return_historico=True
 )
